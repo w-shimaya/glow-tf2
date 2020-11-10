@@ -52,7 +52,9 @@ class AffineCoupling(L.Layer):
         
         # add log-det of Jacobian to the NEGATIVE log-likelihood loss
         self.add_loss(
-            -tf.reduce_sum(s * self.mask)
+            tf.reduce_mean(
+                -tf.reduce_sum(s * (1. - self.mask), axis=[1, 2, 3])
+            )
         )
 
         return y

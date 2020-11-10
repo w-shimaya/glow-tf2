@@ -1,4 +1,3 @@
-import functools
 import tensorflow as tf
 import tensorflow.keras as K
 import tensorflow.keras.layers as L
@@ -19,21 +18,21 @@ class SimpleRealNVP(K.Model):
         # assert 3-ch image
         assert len(data_shape) == 3
         self.data_shape = data_shape
-        data_dim = functools.reduce(lambda x, y: x * y, data_shape)
+        data_dim = data_shape[0] * data_shape[1] * data_shape[2]
 
         self.couplings = []
         # in original paper [Dinh+, 2017], deep ResNet was used 
         # in the coupling layers
         for i in range(n_coupling):
-            nn_s = K.Sequential([L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
-                                 L.Conv2D(128, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
-                                 L.Conv2D(256, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+            nn_s = K.Sequential([L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
+                                 L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+                                 L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
                                  L.Flatten(), 
                                  L.Dense(data_dim, activation="tanh", kernel_initializer="glorot_normal"),
                                  L.Reshape(self.data_shape)])
-            nn_t = K.Sequential([L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
-                                 L.Conv2D(128, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
-                                 L.Conv2D(256, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+            nn_t = K.Sequential([L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
+                                 L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+                                 L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
                                  L.Flatten(), 
                                  L.Dense(data_dim, kernel_initializer="glorot_normal"),
                                  L.Reshape(self.data_shape)])
@@ -56,7 +55,7 @@ class SimpleRealNVP(K.Model):
         # nll of standard normal prior
         loss = 0.5 * tf.reduce_mean(
             tf.reduce_sum(
-                tf.square(h) + tf.math.log(tf.constant(np.pi, dtype="float64") * 2.),
+                tf.square(h) + tf.math.log(tf.constant(np.pi, dtype="float32") * 2.),
                 axis=[1, 2, 3]  # sum over all pixels
             )
         )
@@ -70,8 +69,11 @@ class SimpleRealNVP(K.Model):
         with tf.GradientTape() as tape:
             z = self(data, training=True)
             loss = self._loss_f(z)
-            loss += sum(self.lossses)
+            loss += sum(self.losses)
         grads = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+
+        # metrics
+        self.loss_tracker.update_state(loss)
 
         return { m.name : m.result() for m in self.metrics }
