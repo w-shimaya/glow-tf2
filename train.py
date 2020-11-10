@@ -9,7 +9,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--logdir", "-l", type=str, required=True)
     parser.add_argument("--model", "-m", choices=["nice", "realnvp"], required=True)
+    parser.add_argument("--vdl", "-v", type=int, required=True)
     args = parser.parse_args()
+
+    # set visible devices
+    physical_devices = tf.config.list_physical_devices("GPU")
+    tf.config.set_visible_devices(physical_devices[args.vdl], "GPU")
 
     # prepare mnist dataset
     dataset = K.datasets.mnist
@@ -43,7 +48,7 @@ if __name__ == "__main__":
     if args.model == "nice":
         mdl = model.NICE(28 * 28, 4)
     elif args.model == "realnvp":
-        mdl = model.SimpleRealNVP([28, 28, 1], 4)
+        mdl = model.SimpleRealNVP([28, 28, 1], 8)
     # compile
     mdl.compile(optimizer=K.optimizers.Adam(1e-3, beta_1=0.9, beta_2=0.9, epsilon=1e-4))
     mdl.fit(x_tensor, epochs=100, callbacks=[callback])
