@@ -9,16 +9,10 @@ class RandomSampleImageCallback(K.callbacks.Callback):
         self.sample_shape = sample_shape
         self.image_shape = image_shape
         self.z = tf.constant(np.random.normal(size=[64] + self.sample_shape), dtype="float32")
-        self.iteration = 0
 
-    def on_train_batch_end(self, batch, logs=None):
-        self.iteration = self.iteration + 1
-
-        if not self.iteration % 100 == 0:
-            return
-
+    def on_epoch_end(self, epoch, logs=None):
         x = self.model.inverse(self.z)
         x = tf.reshape(x, [-1] + self.image_shape)
         with self.writer.as_default():
-            tf.summary.image("sample", x, step=self.iteration)
-            tf.summary.scalar("loss", logs["loss"], step=self.iteration)
+            tf.summary.image("sample", x, step=epoch)
+            tf.summary.scalar("loss", logs["loss"], step=epoch)
