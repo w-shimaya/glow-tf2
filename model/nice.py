@@ -2,16 +2,15 @@ import tensorflow as tf
 import tensorflow.keras as K
 import tensorflow.keras.layers as L
 import numpy as np
-from layers import AdditiveCoupling
-from layers import Reverse
-from layers import Rescaling
+from model.layers import AdditiveCoupling
+from model.layers import Reverse
+from model.layers import Rescaling
 
-
-loss_tracker = K.metrics.Mean(name="loss")
 
 class NICE(K.Model):
     def __init__(self, data_shape, n_coupling):
         super(NICE, self).__init__()
+        self.loss_tracker = K.metrics.Mean(name="loss")
         # currently 1-dim data assumed
         assert type(data_shape) == int
         self.data_shape = data_shape
@@ -57,7 +56,7 @@ class NICE(K.Model):
 
     @property
     def metrics(self):
-        return [loss_tracker]
+        return [self.loss_tracker]
 
     def train_step(self, data):
         with tf.GradientTape() as tape:
@@ -66,7 +65,7 @@ class NICE(K.Model):
             loss += sum(self.losses)  
         grads = tape.gradient(loss, self.trainable_variables)
         # metrics (NLL)
-        loss_tracker.update_state(loss)
+        self.loss_tracker.update_state(loss)
         self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
 
         return { m.name : m.result() for m in self.metrics }
