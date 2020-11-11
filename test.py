@@ -9,9 +9,9 @@ class InversibleTest(unittest.TestCase):
         self.eps = 1e-5
 
     def test_nice_inverse(self):
-        test_tensor = np.array([[1., 0.], [0., 1.], [-1., 1.]], dtype="float32")
+        test_tensor = np.random.normal(size=(4, 8)).astype("float32")
 
-        nice = model.NICE(2, 4)
+        nice = model.NICE(8, 4)
         result_tensor = nice.inverse(nice(test_tensor))
         self.assertTrue(
             tf.reduce_all(
@@ -20,33 +20,9 @@ class InversibleTest(unittest.TestCase):
         )
 
     def test_realnvp_inverse(self):
-        test_tensor = np.array([
-            [[1., 0.], 
-             [0., 1.]], 
-            [[-1., 1.], 
-             [1., -1.]],
-            [[0.2, 0.5], 
-             [0.3, 0.8]], 
-        ], dtype="float32")
-        test_tensor = test_tensor[:, :, :, np.newaxis]
+        test_tensor = np.random.normal(size=(4, 16, 16, 3)).astype("float32")
 
-        realnvp = model.SimpleRealNVP((2, 2, 1), 4)
-        result_tensor = realnvp.inverse(realnvp(test_tensor))
-        self.assertTrue(
-            tf.reduce_all(
-                tf.abs(result_tensor - test_tensor) < self.eps
-            ).numpy()
-        )
-
-    def test_realnvp_inverse_4x4(self):
-        test_tensor = np.array([
-            [[[0.1, 0.3], [0.2, 0.1], [0.3, 1.0], [0.4, 0.4]], 
-             [[0.2, 0.1], [0.3, 0.5], [0.4, 0.8], [0.5, 1.0]], 
-             [[0.3, 0.8], [0.4, 0.2], [0.5, -1.], [0.6, 0.0]],
-             [[0.1, 0.4], [-1., 0.5], [0.6, 0.0], [0.7, 0.3]]], 
-        ], dtype="float32")
-
-        realnvp = model.SimpleRealNVP((4, 4, 2), 6)
+        realnvp = model.SimpleRealNVP((16, 16, 3), 4)
         result_tensor = realnvp.inverse(realnvp(test_tensor))
         self.assertTrue(
             tf.reduce_all(

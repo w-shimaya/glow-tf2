@@ -44,23 +44,7 @@ if __name__ == "__main__":
     elif args.model == "realnvp":
         sample_shape = [28, 28, 1]
 
-    # set callback
-    callback = callbacks.RandomSampleImageCallback(
-        logdir=args.logdir, 
-        sample_shape=sample_shape, 
-        image_shape=[28, 28, 1]
-    )
-
-    # train the model
-    if args.model == "nice":
-        mdl = model.NICE(28 * 28, 4, regularize=True)
-    elif args.model == "realnvp":
-        mdl = model.SimpleRealNVP([28, 28, 1], 8)
-    # compile
-    mdl.compile(optimizer=K.optimizers.Adam(1e-7, beta_1=0.9, beta_2=0.01, epsilon=1e-4))
-    mdl.fit(x_tensor, epochs=500, callbacks=[callback])
-
-    # save the model
+    # prepare a directory to save the model
     save_dir = os.path.join(args.logdir, "saved_model")
     if os.path.exists(save_dir):
         print(f"{save_dir} already exists. Overwrite? [y/N]")
@@ -71,5 +55,26 @@ if __name__ == "__main__":
 
     # make directory to save the model
     os.makedirs(save_dir)
+
+    # set callback
+    image_callback = callbacks.RandomSampleImageCallback(
+        logdir=args.logdir, 
+        sample_shape=sample_shape, 
+        image_shape=[28, 28, 1]
+    )
+    save_model_callback = K.callbacks.ModelCheckpoint(
+        os.path.join(save_dir, "epoch-{epoch:02d}"), 
+        monitor="loss", 
+        save_best_only=True
+    )
+
+    # train the model
+    if args.model == "nice":
+        mdl = model.NICE(28 * 28, 4, regularize=True)
+    elif args.model == "realnvp":
+        mdl = model.SimpleRealNVP([28, 28, 1], 8)
+    # compile
+    mdl.compile(optimizer=K.optimizers.Adam(1e-7, beta_1=0.9, beta_2=0.01, epsilon=1e-4))
+    mdl.fit(x_tensor, epochs=500, callbacks=[image_callback, save_model_callback])
 
     mdl.save(os.path.join(save_dir, "model"))
