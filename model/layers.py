@@ -1,31 +1,61 @@
+import abc
 import tensorflow as tf
 import tensorflow.keras as K
 import tensorflow.keras.layers as L
 import numpy as np
 
+class CouplingBase(L.Layer, metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def inverse(self, inputs):
+        pass
 
-class AdditiveCoupling(L.Layer):
-    def __init__(self, m):
+    @property
+    @abc.abstractmethod
+    def log_det_jacobian(self):
+        pass
+
+
+class AdditiveCoupling(CouplingBase):
+    def __init__(self, parity, m):
         super(AdditiveCoupling, self).__init__()
         self.m = m
+        self.parity = parity
 
     def build(self, input_shape):
         assert input_shape[-1] % 2 == 0
-        self.split_size = input_shape[-1] // 2
+        self.data_dim = input_shape[-1]
+
+    @property
+    def log_det_jacobian(self):
+        return 0.
+
+    def _concat_alt(self, t1, t2):
+        # concat t1 and t2 in alternate fashion
+        # e.g., [t1_1, t2_1, t1_2, ...]
+        t1_ex = tf.expand_dims(t1, axis=2)
+        t2_ex = tf.expand_dims(t2, axis=2)
+        t = tf.concat([t1_ex, t2_ex], axis=2)
+        return tf.reshape(t, [-1, self.data_dim])
 
     def call(self, inputs):
-        x1, x2 = tf.split(inputs, [self.split_size, self.split_size], axis=-1)
+        x1, x2 = inputs[:, self.parity::2], inputs[:, 1 - self.parity::2]
         y1 = x1
         y2 = x2 + self.m(x1)
-        return tf.concat([y1, y2], axis=-1)
+        if self.parity == 0:
+            return self._concat_alt(y1, y2)
+        else:
+            return self._concat_alt(y2, y1)
     
     def inverse(self, inputs):
-        y1, y2 = tf.split(inputs, [self.split_size, self.split_size], axis=-1)
+        y1, y2 = inputs[:, self.parity::2], inputs[:, 1 - self.parity::2]
         x1 = y1
         x2 = y2 - self.m(y1)
-        return tf.concat([x1, x2], axis=-1)
+        if self.parity == 0:
+            return self._concat_alt(x1, x2)
+        else:
+            return self._concat_alt(x2, x1)
 
-class AffineCoupling(L.Layer):
+class AffineCoupling(CouplingBase):
     def __init__(self, parity, nn_s, nn_t):
         super(AffineCoupling, self).__init__()
         assert parity == 0 or parity == 1
@@ -33,6 +63,11 @@ class AffineCoupling(L.Layer):
         # nn for scale and translation
         self.nn_s = nn_s
         self.nn_t = nn_t
+        self._log_det_jacobian = 0.
+
+    @property
+    def log_det_jacobian(self):
+        return self._log_det_jacobian
 
     def build(self, input_shape):
         # checker board masks
@@ -51,11 +86,7 @@ class AffineCoupling(L.Layer):
         y = x_masked + (1. - self.mask) * (inputs * s + t)
         
         # add log-det of Jacobian to the NEGATIVE log-likelihood loss
-        self.add_loss(
-            tf.reduce_mean(
-                -tf.reduce_sum(s * (1. - self.mask), axis=[1, 2, 3])
-            )
-        )
+        self._log_det_jacobian = tf.reduce_sum(s * (1. - self.mask), axis=[1, 2, 3])
 
         return y
 
@@ -67,25 +98,20 @@ class AffineCoupling(L.Layer):
         return x
 
 
-class Rescaling(L.Layer):
+class Rescaling(CouplingBase):
     def __init__(self):
         super(Rescaling, self).__init__()
     
+    @property
+    def log_det_jacobian(self):
+        return tf.reduce_sum(self.log_s)
+
     def build(self, input_shape):
-        self.log_s = tf.Variable(initial_value=tf.zeros_initializer()(shape=input_shape[1:], dtype="float32"), trainable=True)
+        self.log_s = tf.Variable(initial_value=tf.zeros_initializer()(shape=[1, input_shape[1]], dtype="float32"), trainable=True)
+        super(Rescaling, self).build(input_shape)
     
     def call(self, inputs):
-        # log-det of Jacobian
-        self.add_loss(-tf.reduce_sum(self.log_s))  # note: NEGATIVE log-likelihood
         return inputs * tf.exp(self.log_s)
 
     def inverse(self, inputs):
         return inputs * tf.exp(-self.log_s)
-
-class Reverse(L.Layer):
-    def call(self, inputs):
-        return tf.reverse(inputs, axis=[-1])
-
-    def inverse(self, inputs):
-        return tf.reverse(inputs, axis=[-1])
-

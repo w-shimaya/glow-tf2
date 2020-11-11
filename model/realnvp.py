@@ -53,12 +53,17 @@ class SimpleRealNVP(K.Model):
 
     def _loss_f(self, h):
         # nll of standard normal prior
-        loss = 0.5 * tf.reduce_mean(
-            tf.reduce_sum(
+        loss = 0.5 * tf.reduce_sum(
                 tf.square(h) + tf.math.log(tf.constant(np.pi, dtype="float32") * 2.),
                 axis=[1, 2, 3]  # sum over all pixels
-            )
         )
+
+        # log determinant
+        for layer in self.couplings:
+            loss += -layer.log_det_jacobian
+
+        # note: use mean (not sum) for stability
+        loss = tf.reduce_mean(loss)
         return loss
 
     @property

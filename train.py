@@ -1,7 +1,10 @@
 import argparse
+import os
+import sys
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras as K
+import matplotlib.pyplot as plt
 import model
 import callbacks
 
@@ -20,8 +23,12 @@ if __name__ == "__main__":
     dataset = K.datasets.mnist
     (x_train, _), (x_test, _) = dataset.load_data()
     x_train = x_train.astype(np.float32)
-    # reduce the impact of boundary effects
-    x_train = .05 + .95 * x_train / 256.
+    # dequantization (?)
+    x_train = x_train + np.random.normal(size=x_train.shape)
+    x_train = (x_train - np.min(x_train)) / (np.max(x_train) - np.min(x_train))
+    # reduce the impact of boundary effects (?)
+    x_train = .05 + .95 * x_train
+
     # reshape to fit inputs of the model
     if args.model == "nice":
         x_train = np.reshape(x_train, [-1, 28*28])
@@ -29,7 +36,7 @@ if __name__ == "__main__":
         x_train = np.reshape(x_train, [-1, 28, 28, 1])
     # tf dataset
     x_tensor = tf.data.Dataset.from_tensor_slices(x_train)
-    x_tensor = x_tensor.batch(32)
+    x_tensor = x_tensor.batch(64)
 
     # latent dim
     if args.model == "nice":
@@ -46,9 +53,23 @@ if __name__ == "__main__":
 
     # train the model
     if args.model == "nice":
-        mdl = model.NICE(28 * 28, 4)
+        mdl = model.NICE(28 * 28, 4, regularize=True)
     elif args.model == "realnvp":
         mdl = model.SimpleRealNVP([28, 28, 1], 8)
     # compile
-    mdl.compile(optimizer=K.optimizers.Adam(1e-3, beta_1=0.9, beta_2=0.9, epsilon=1e-4))
-    mdl.fit(x_tensor, epochs=100, callbacks=[callback])
+    mdl.compile(optimizer=K.optimizers.Adam(1e-7, beta_1=0.9, beta_2=0.01, epsilon=1e-4))
+    mdl.fit(x_tensor, epochs=500, callbacks=[callback])
+
+    # save the model
+    save_dir = os.path.join(args.logdir, "saved_model")
+    if os.path.exists(save_dir):
+        print(f"{save_dir} already exists. Overwrite? [y/N]")
+        c = input()
+        if not c.upper() == "Y":
+            print("abort")
+            exit()
+
+    # make directory to save the model
+    os.makedirs(save_dir)
+
+    mdl.save(os.path.join(save_dir, "model"))
