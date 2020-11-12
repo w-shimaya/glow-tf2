@@ -29,13 +29,13 @@ class SimpleRealNVP(K.Model):
                                  L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
                                  L.Flatten(), 
                                  L.Dense(data_dim, activation="tanh", kernel_initializer="glorot_normal"),
-                                 L.Reshape(self.data_shape)])
+                                 L.Reshape(self.data_shape)], name=f"AffineScaleNet{i}")
             nn_t = K.Sequential([L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
                                  L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
                                  L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
                                  L.Flatten(), 
                                  L.Dense(data_dim, kernel_initializer="glorot_normal"),
-                                 L.Reshape(self.data_shape)])
+                                 L.Reshape(self.data_shape)], name=f"AffineTransNet{i}")
 
             self.couplings.append(AffineCoupling(i % 2, nn_s, nn_t))
 
@@ -82,3 +82,24 @@ class SimpleRealNVP(K.Model):
         self.loss_tracker.update_state(loss)
 
         return { m.name : m.result() for m in self.metrics }
+
+    def get_config(self):
+        config = super(SimpleRealNVP, self).get_config()
+        config.update({
+            "inverse" : self.inverse, 
+            "couplings" : self.couplings, 
+            "n_coupling" : len(self.couplings), 
+            "data_shape" : self.data_shape, 
+        })
+        return config
+
+    def save(self, filepath, overwrite=True, include_optimizer=True, 
+             save_format=None, signatures=None, options=None):
+        print("save called")
+        super(SimpleRealNVP, self).save(filepath, overwrite, include_optimizer, save_format, signatures, options)
+
+
+    def save_weights(self, filepath, overwrite=True, save_format=None, options=None):
+        print("save_weights called")
+        self.save(filepath, overwrite=overwrite)
+        # super(SimpleRealNVP, self).save_weights(filepath, overwrite, save_format, options)

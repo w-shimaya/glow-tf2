@@ -97,6 +97,13 @@ class AffineCoupling(CouplingBase):
         x = y_masked + (1. - self.mask) * ((inputs - t) * s)
         return x
 
+    def get_config(self):
+        config = super(AffineCoupling, self).get_config()
+        config.update({
+            "parity" : self.parity,
+        })
+        return config
+
 
 class Rescaling(CouplingBase):
     def __init__(self):
