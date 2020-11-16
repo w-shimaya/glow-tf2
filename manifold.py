@@ -54,17 +54,14 @@ if __name__ == "__main__":
         for j in range(5):
             img[i*28:(i+1)*28, j*28:(j+1)*28, :] = np.reshape(z_manifold[i + 5 * j, :], (28, 28, 1))
     
-    plt.imshow(img, cmap="Greys_r")
-    plt.colorbar()
-    plt.show()   
-
 
     # error!?
     # x_manifold = mdl.inverse(z_manifold)
+    
+    # inline inverse 
     x_manifold = z_manifold
     h, w = 28, 28
 
-    print(len(mdl.couplings))
     for i, layer in enumerate(reversed(mdl.couplings)):
         # x_manifold = layer.inverse(x_manifold)
         parity = (len(mdl.couplings) - i - 1) % 2
