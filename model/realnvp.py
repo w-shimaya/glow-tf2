@@ -24,15 +24,13 @@ class SimpleRealNVP(K.Model):
         # in original paper [Dinh+, 2017], deep ResNet was used 
         # in the coupling layers
         for i in range(n_coupling):
-            nn_s = K.Sequential([L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
-                                 L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
-                                 L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+            nn_s = K.Sequential([L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
+                                 L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
                                  L.Flatten(), 
                                  L.Dense(data_dim, activation="tanh", kernel_initializer="glorot_normal"),
                                  L.Reshape(self.data_shape)], name=f"AffineScaleNet{i}")
-            nn_t = K.Sequential([L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
-                                 L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
-                                 L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+            nn_t = K.Sequential([L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
+                                 L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
                                  L.Flatten(), 
                                  L.Dense(data_dim, kernel_initializer="glorot_normal"),
                                  L.Reshape(self.data_shape)], name=f"AffineTransNet{i}")

@@ -7,7 +7,6 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras as K
 import tensorflow_datasets as tfds
-import matplotlib.pyplot as plt
 import model
 import callbacks
 
@@ -28,7 +27,6 @@ def get_mnist_dataset(model):
         x_train = np.reshape(x_train, [-1, 28, 28, 1])
     # tf dataset
     x_tensor = tf.data.Dataset.from_tensor_slices(x_train)
-    x_tensor = x_tensor.batch(args.batch_size)
     return x_tensor
 
 def get_dsprites_dataset(model):
@@ -39,12 +37,9 @@ def get_dsprites_dataset(model):
         if model == "nice":
             ret = tf.reshape(ret, (-1, 64 * 64))
         return ret
-    dataset = tfds.load("dsprites")
-    for k in dataset.keys():
-        print(k)
-    dataset = dataset["train"].map(preprocess)
-    x_tensor = dataset.batch(args.batch_size)
-    return x_tensor
+    dataset = tfds.load("dsprites", data_dir="./tfds")
+    dataset = dataset["train"].map(preprocess, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    return dataset
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -68,6 +63,10 @@ if __name__ == "__main__":
         # prepare dsprites dataset
         x_tensor = get_dsprites_dataset(args.model)
         image_shape = [64, 64, 1]
+
+    x_tensor = x_tensor.shuffle(buffer_size=737280, reshuffle_each_iteration=True)
+    x_tensor = x_tensor.batch(args.batch_size)
+    x_tensor = x_tensor.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
     # latent dim
     if args.model == "nice":
