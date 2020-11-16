@@ -103,9 +103,10 @@ if __name__ == "__main__":
     if args.model == "nice":
         mdl = model.NICE(sample_shape[0], 4, regularize=True)
     elif args.model == "realnvp":
-        mdl = model.SimpleRealNVP(image_shape, 4)
+        mdl = model.SimpleRealNVP(image_shape, 6)
     # compile
     mdl.compile(optimizer=K.optimizers.Adam(args.learning_rate, beta_1=0.9, beta_2=0.01, epsilon=1e-4))
+    # mdl.summary()
     mdl.fit(x_tensor, epochs=args.epoch, callbacks=[image_callback, save_model_callback])
 
     # debug

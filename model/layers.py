@@ -56,10 +56,14 @@ class AdditiveCoupling(CouplingBase):
             return self._concat_alt(x2, x1)
 
 class AffineCoupling(CouplingBase):
-    def __init__(self, parity, nn_s, nn_t):
-        super(AffineCoupling, self).__init__()
+    def __init__(self, parity, pattern, nn_s, nn_t, **kwargs):
+        super(AffineCoupling, self).__init__(**kwargs)
         assert parity == 0 or parity == 1
         self.parity = parity
+        # mask pattern
+        # (checkerborad or channel-wise after squeqqzing)
+        assert pattern == "checker" or pattern == "channel"
+        self.pattern = pattern
         # nn for scale and translation
         self.nn_s = nn_s
         self.nn_t = nn_t
@@ -70,14 +74,31 @@ class AffineCoupling(CouplingBase):
         return self._log_det_jacobian
 
     def build(self, input_shape):
-        # checker board masks
-        assert len(input_shape) == 4 and input_shape[1] % 2 == 0 and input_shape[2] % 2 == 0
-        h, w = input_shape[1], input_shape[2]
-        mask = np.array([[self.parity, 1 - self.parity] * (w // 2), 
-                         [1 - self.parity, self.parity] * (w // 2)], dtype="float32")
-        mask = np.tile(mask, (h // 2, 1))
-        mask = mask[:, :, np.newaxis]
-        self.mask = tf.constant(mask)
+        # image input
+        assert len(input_shape) == 4
+
+        if self.pattern == "checker":
+            # checker board masks
+            assert input_shape[1] % 2 == 0 and input_shape[2] % 2 == 0
+            h, w = input_shape[1], input_shape[2]
+            mask = np.array([[self.parity, 1 - self.parity] * (w // 2), 
+                             [1 - self.parity, self.parity] * (w // 2)],
+                            dtype="float32")
+            mask = np.tile(mask, (h // 2, 1))
+            mask = mask[:, :, np.newaxis]
+            self.mask = tf.constant(mask)
+        elif self.pattern == "channel":
+            # channel-wise masks
+            assert input_shape[3] % 2 == 0
+            zeros = tf.zeros([1, input_shape[1], input_shape[2], 
+                              input_shape[3] // 2], dtype="float32")
+            ones = tf.ones([1, input_shape[1], input_shape[2], 
+                            input_shape[3] // 2], dtype="float32")
+            if self.parity == 0:
+                self.mask = tf.concat([ones, zeros], axis=-1)
+            else:
+                self.mask = tf.concat([zeros, ones], axis=-1)
+
 
     def call(self, inputs):
         x_masked = inputs * self.mask
@@ -100,9 +121,52 @@ class AffineCoupling(CouplingBase):
     def get_config(self):
         config = super(AffineCoupling, self).get_config()
         config.update({
-            "parity" : self.parity,
+            "parity"  : self.parity,
+            "pattern" : self.pattern, 
         })
         return config
+
+class Squeeze(CouplingBase):
+    # reference: https://github.com/openai/glow/blob/master/tfops.py
+    def __init__(self):
+        super(Squeeze, self).__init__()
+
+    def build(self, input_shape):
+        self.height = input_shape[1]
+        self.width = input_shape[2]
+        self.n_channels = input_shape[3]
+
+    def call(self, inputs):
+        return self._squeeze(inputs)
+
+    def inverse(self, inputs):
+        return self._unsqueeze(inputs)
+
+    @property
+    def log_det_jacobian(self):
+        return 0.
+
+    def _squeeze(self, x, factor=2):
+        assert factor >= 1
+        if factor == 1:
+            return x
+        x = tf.reshape(x, [-1, self.height // factor, factor, 
+                           self.width // factor, factor, self.n_channels])
+        x = tf.transpose(x, [0, 1, 3, 5, 2, 4])
+        x = tf.reshape(x, [-1, self.height // factor, self.width // factor, 
+                           self.n_channels * factor * factor])
+        return x
+
+    def _unsqueeze(self, x, factor=2):
+        assert factor >= 1
+        if factor == 1:
+            return x
+        x = tf.reshape(x, [-1, self.height // factor, self.width // factor, 
+                           self.n_channels , factor, factor])
+        x = tf.transpose(x, [0, 1, 4, 2, 5, 3])
+        x = tf.reshape(x, [-1, self.height, self.width,
+                           self.n_channels])
+        return x
 
 
 class Rescaling(CouplingBase):

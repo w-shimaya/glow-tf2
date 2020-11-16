@@ -3,6 +3,7 @@ import tensorflow.keras as K
 import tensorflow.keras.layers as L
 import numpy as np
 from model.layers import AffineCoupling
+from model.layers import Squeeze
 
 
 class SimpleRealNVP(K.Model):
@@ -24,18 +25,33 @@ class SimpleRealNVP(K.Model):
         # in original paper [Dinh+, 2017], deep ResNet was used 
         # in the coupling layers
         for i in range(n_coupling):
-            nn_s = K.Sequential([L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
-                                 L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
-                                 L.Flatten(), 
-                                 L.Dense(data_dim, activation="tanh", kernel_initializer="glorot_normal"),
-                                 L.Reshape(self.data_shape)], name=f"AffineScaleNet{i}")
-            nn_t = K.Sequential([L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
-                                 L.Conv2D(64, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
-                                 L.Flatten(), 
-                                 L.Dense(data_dim, kernel_initializer="glorot_normal"),
-                                 L.Reshape(self.data_shape)], name=f"AffineTransNet{i}")
+            if (i // 3) % 2 == 0 and i % 3 == 0:
+                self.couplings.append(Squeeze())
+                data_shape = [data_shape[0] // 2, data_shape[1] // 2, 
+                              data_shape[2] * 4]
 
-            self.couplings.append(AffineCoupling(i % 2, nn_s, nn_t))
+            # NNs 
+            nn_s = K.Sequential([
+                L.InputLayer(input_shape=data_shape), 
+                L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
+                L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+                L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+                L.Conv2D(data_shape[2], 3, padding="same", activation="tanh", kernel_initializer="he_normal"),
+            ])
+            nn_t = K.Sequential([
+                L.InputLayer(input_shape=data_shape), 
+                L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"), 
+                L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+                L.Conv2D(32, 3, padding="same", activation="relu", kernel_initializer="he_normal"),
+                L.Conv2D(data_shape[2], 3, padding="same", kernel_initializer="he_normal"),
+            ])
+
+            # 3x checker mask -> 3x channel mask
+            pattern = "checker" if (i // 3) % 2 == 0 else "channel"
+            self.couplings.append(
+                AffineCoupling(i % 2, pattern, nn_s, nn_t)
+            )
+
 
     def call(self, inputs):
         h = inputs
