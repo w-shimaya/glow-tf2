@@ -10,7 +10,7 @@ import tensorflow_datasets as tfds
 import model
 import callbacks
 
-def get_mnist_dataset(model):
+def get_mnist_dataset(model, with_corners=False):
     # prepare mnist dataset
     dataset = K.datasets.mnist
     (x_train, _), (x_test, _) = dataset.load_data()
@@ -27,7 +27,18 @@ def get_mnist_dataset(model):
         x_train = np.reshape(x_train, [-1, 28, 28, 1])
     # tf dataset
     x_tensor = tf.data.Dataset.from_tensor_slices(x_train)
-    return x_tensor
+
+    if not with_corners:
+        return x_tensor
+
+    corner_idx = np.random.randint(0, x_test.shape[0], (4, ))
+    x_corners = x_test[corner_idx, ...]
+    if model == "nice":
+        x_corners = np.reshape(x_corners, [4, 28 * 28])
+    elif model == "realnvp":
+        x_corners = np.reshape(x_corners, [4, 28, 28, 1])
+
+    return x_tensor, x_corners
 
 def get_dsprites_dataset(model):
     def preprocess(x):
@@ -57,7 +68,8 @@ if __name__ == "__main__":
     tf.config.set_visible_devices(physical_devices[args.vdl], "GPU")
 
     if args.dataset == "mnist":
-        x_tensor = get_mnist_dataset(args.model)
+        # x_tensor = get_mnist_dataset(args.model)
+        x_tensor, x_corners = get_mnist_dataset(args.model, with_corners=True)
         image_shape = [28, 28, 1]
     elif args.dataset == "dsprites":
         # prepare dsprites dataset
@@ -72,7 +84,8 @@ if __name__ == "__main__":
     if args.model == "nice":
         sample_shape = [functools.reduce(lambda x, y: x * y, image_shape, 1)]
     elif args.model == "realnvp":
-        sample_shape = image_shape
+        # sample_shape = image_shape
+        sample_shape = [14, 14, 4]
 
     # prepare a directory to save the model
     save_dir = os.path.join(args.logdir, "saved_model")
@@ -87,10 +100,18 @@ if __name__ == "__main__":
         os.makedirs(save_dir)
 
     # set callback
+    writer = tf.summary.create_file_writer(args.logdir)
     image_callback = callbacks.RandomSampleImageCallback(
         logdir=args.logdir, 
         sample_shape=sample_shape, 
-        image_shape=image_shape
+        image_shape=image_shape, 
+        writer=writer
+    )
+    manifold_callback = callbacks.InterpolationCallback(
+        logdir=args.logdir, 
+        sample_shape=sample_shape, 
+        corner_images=x_corners, 
+        writer=writer
     )
     save_model_callback = K.callbacks.ModelCheckpoint(
         os.path.join(save_dir, "epoch-{epoch:02d}"), 

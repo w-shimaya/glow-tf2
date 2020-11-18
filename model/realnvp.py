@@ -25,7 +25,7 @@ class SimpleRealNVP(K.Model):
         # in original paper [Dinh+, 2017], deep ResNet was used 
         # in the coupling layers
         for i in range(n_coupling):
-            if (i // 3) % 2 == 0 and i % 3 == 0:
+            if (i // 3) % 2 == 1 and i % 3 == 0:
                 self.couplings.append(Squeeze())
                 data_shape = [data_shape[0] // 2, data_shape[1] // 2, 
                               data_shape[2] * 4]

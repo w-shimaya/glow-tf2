@@ -3,7 +3,7 @@ import os
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras as K
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import model
 
 if __name__ == "__main__":
@@ -62,14 +62,32 @@ if __name__ == "__main__":
     x_manifold = z_manifold
     h, w = 28, 28
 
+    print(mdl.couplings)
     for i, layer in enumerate(reversed(mdl.couplings)):
+        print(layer)
+        if i == 3:
+            x_manifold = tf.reshape(x_manifold, [-1, 14, 14, 1, 2, 2])
+            x_manifold = tf.transpose(x_manifold, [0, 1, 4, 2, 5, 3])
+            x_manifold = tf.reshape(x_manifold, [-1, 28, 28, 1])
+            continue
+
         # x_manifold = layer.inverse(x_manifold)
         parity = (len(mdl.couplings) - i - 1) % 2
-        mask = np.array([[parity, 1 - parity] * (w // 2), 
-                         [1 - parity, parity] * (w // 2)], dtype="float32")
-        mask = np.tile(mask, (h // 2, 1))
-        mask = mask[:, :, np.newaxis]
+        # if layer.pattern == "checker":
+        if i > 3:
+            mask = np.array([[parity, 1 - parity] * (w // 2), 
+                             [1 - parity, parity] * (w // 2)], dtype="float32")
+            mask = np.tile(mask, (h // 2, 1))
+            mask = mask[np.newaxis, :, :, np.newaxis]
+        else:
+            zeros = np.zeros([1, 14, 14, 2], dtype="float32")
+            ones  = np.ones([1, 14, 14, 2], dtype="float32")
+            if parity == 1:
+                mask = np.concatenate([ones, zeros], axis=-1)
+            else:
+                mask = np.concatenate([zeros, ones], axis=-1)
 
+        print(layer.nn_s.input_shape)
         y_masked = x_manifold * mask
         s = tf.exp(-layer.nn_s(y_masked))
         t = layer.nn_t(y_masked)
@@ -83,6 +101,8 @@ if __name__ == "__main__":
         for j in range(5):
             img[i*28:(i+1)*28, j*28:(j+1)*28, :] = np.reshape(x_visualize[i, j, :], (28, 28, 1))
     
-    plt.imshow(img, cmap="Greys_r")
-    plt.colorbar()
-    plt.show()
+    # plt.imshow(img, cmap="Greys_r")
+    # plt.colorbar()
+    # plt.show()
+
+    np.save(args.outfile, img)

@@ -102,12 +102,12 @@ class AffineCoupling(CouplingBase):
 
     def call(self, inputs):
         x_masked = inputs * self.mask
-        s = tf.exp(self.nn_s(x_masked))
+        log_s = self.nn_s(x_masked)
         t = self.nn_t(x_masked)
-        y = x_masked + (1. - self.mask) * (inputs * s + t)
+        y = x_masked + (1. - self.mask) * (inputs * tf.exp(log_s) + t)
         
         # add log-det of Jacobian to the NEGATIVE log-likelihood loss
-        self._log_det_jacobian = tf.reduce_sum(s * (1. - self.mask), axis=[1, 2, 3])
+        self._log_det_jacobian = tf.reduce_sum(log_s * (1. - self.mask), axis=[1, 2, 3])
 
         return y
 
